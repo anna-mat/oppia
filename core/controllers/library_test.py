@@ -59,6 +59,95 @@ class OldLibraryRedirectPageTest(test_utils.GenericTestBase):
         self.assertEqual(
             'http://localhost/community-library', response.headers['location'])
 
+class GetMatchingActivityDictsTest(test_utils.GenericTestBase):
+    """Tests for the get_matching_activity_dicts function."""
+
+    def test_get_matching_activity_dicts_no_search_offset(self) -> None:
+        query_string = "Sample Query"
+        categories = ["Category1"]
+        language_codes = ["en"]
+
+        # Mock `get_collection_ids_matching_query` to return a collection ID.
+        def mock_get_collection_ids_matching_query(query, cats, langs):
+            print(f"Mocking collection query with: {query}, {cats}, {langs}")
+            return ["collection_id_1"], None  # Simulate 1 collection ID returned
+
+        # Mock `get_displayable_collection_summary_dicts_matching_ids` to return collection summaries.
+        def mock_get_displayable_collection_summaries(ids):
+            print(f"Mocking summary fetch for ids: {ids}")
+            return [{"id": "collection_id_1", "title": "Test Collection", "category": "Category1", "language_code": "en"}]
+
+        # Swap the original methods with mocks.
+        with self.swap(
+            collection_services,
+            'get_collection_ids_matching_query',
+            mock_get_collection_ids_matching_query
+        ), self.swap(
+            summary_services,
+            'get_displayable_collection_summary_dicts_matching_ids',
+            mock_get_displayable_collection_summaries
+        ):
+            # Call the function with search_offset=None.
+            activity_list, new_offset = library.get_matching_activity_dicts(
+                query_string, categories, language_codes, search_offset=None
+            )
+
+            # Debugging output to verify the lists
+            print(f"Activity list: {activity_list}")
+            print(f"New offset: {new_offset}")
+
+            # Assert the results.
+            self.assertEqual(len(activity_list), 1)  # Ensure 1 collection is returned
+            self.assertEqual(activity_list[0]['id'], "collection_id_1")  # Ensure the correct collection is returned
+            self.assertIsNone(new_offset)  # Ensure no offset is returned
+
+    def test_get_matching_activity_dicts_no_search_offset_with_edge_cases(self) -> None:
+        # Edge Case: No collection IDs found
+        def mock_no_collections(query, cats, langs):
+            return [], None
+
+        # Edge Case: Invalid collection IDs
+        def mock_invalid_collections(ids):
+            return []
+
+        with self.swap(
+            collection_services,
+            'get_collection_ids_matching_query',
+            mock_no_collections
+        ), self.swap(
+            summary_services,
+            'get_displayable_collection_summary_dicts_matching_ids',
+            mock_invalid_collections
+        ):
+            activity_list, new_offset = library.get_matching_activity_dicts(
+                "Query", ["Category"], ["en"], None
+            )
+            self.assertEqual(len(activity_list), 0)  # No results
+            self.assertIsNone(new_offset)
+
+    def test_get_matching_activity_dicts_with_search_offset(self) -> None:
+        def mock_get_exploration_ids(query, cats, langs, offset):
+            self.assertIsNotNone(offset)  # Validate offset is provided
+            return ["exp_id_1"], None  # Return a valid exploration ID
+
+        def mock_get_displayable_explorations(ids):
+            # Return a valid exploration summary for the given IDs
+            return [{"id": "exp_id_1", "title": "Test Exploration"}]
+
+        with self.swap(
+            exp_services,
+            'get_exploration_ids_matching_query',
+            mock_get_exploration_ids
+        ), self.swap(
+            summary_services,
+            'get_displayable_exp_summary_dicts_matching_ids',
+            mock_get_displayable_explorations
+        ):
+            activity_list, new_offset = library.get_matching_activity_dicts(
+                "Query", ["Category"], ["en"], search_offset=10
+            )
+            self.assertEqual(len(activity_list), 1)  # Ensure a result is returned
+            self.assertEqual(activity_list[0]['id'], "exp_id_1")  # Validate the ID
 
 class LibraryPageTests(test_utils.GenericTestBase):
 
