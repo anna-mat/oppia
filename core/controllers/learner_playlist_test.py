@@ -262,6 +262,55 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
 
         self.logout()
 
+    # New test
+    def test_add_collection_to_learner_playlist_all_cases(self) -> None:
+        self.login(self.VIEWER_EMAIL)
+        csrf_token = self.get_new_csrf_token()
+
+        # Test Case 1: Normal addition (all flags False).
+        response = self.post_json(
+            '%s/%s/%s' % (
+                feconf.LEARNER_PLAYLIST_DATA_URL,
+                constants.ACTIVITY_TYPE_COLLECTION,
+                self.COL_ID_1), {}, csrf_token=csrf_token)
+        self.assertFalse(response['belongs_to_completed_or_incomplete_list'])
+        self.assertFalse(response['playlist_limit_exceeded'])
+        self.assertFalse(response['belongs_to_subscribed_activities'])
+
+        # Test Case 2: Collection is completed.
+        learner_progress_services.mark_collection_as_completed(self.viewer_id, self.COL_ID_2)
+        response = self.post_json(
+            '%s/%s/%s' % (
+                feconf.LEARNER_PLAYLIST_DATA_URL,
+                constants.ACTIVITY_TYPE_COLLECTION,
+                self.COL_ID_2), {}, csrf_token=csrf_token)
+        self.assertTrue(response['belongs_to_completed_or_incomplete_list'])
+
+        # Test Case 3: Playlist limit exceeded.
+        for i in range(feconf.MAX_LEARNER_PLAYLIST_ACTIVITY_COUNT - 1):
+            self.post_json(
+                '%s/%s/%s' % (
+                    feconf.LEARNER_PLAYLIST_DATA_URL,
+                    constants.ACTIVITY_TYPE_COLLECTION,
+                    f'unique_col_id_{i}'), {}, csrf_token=csrf_token)
+        response = self.post_json(
+            '%s/%s/%s' % (
+                feconf.LEARNER_PLAYLIST_DATA_URL,
+                constants.ACTIVITY_TYPE_COLLECTION,
+                self.COL_ID_3), {}, csrf_token=csrf_token)
+        self.assertTrue(response['playlist_limit_exceeded'])
+
+        # Test Case 4: Subscribed collection.
+        learner_progress_services.add_collection_to_learner_playlist(self.viewer_id, self.COL_ID_4)
+        response = self.post_json(
+            '%s/%s/%s' % (
+                feconf.LEARNER_PLAYLIST_DATA_URL,
+                constants.ACTIVITY_TYPE_COLLECTION,
+                self.COL_ID_4), {}, csrf_token=csrf_token)
+        self.assertTrue(response['belongs_to_subscribed_activities'])
+
+        self.logout()
+
     def test_remove_exploration_from_learner_playlist(self) -> None:
         self.login(self.VIEWER_EMAIL)
 
@@ -339,5 +388,48 @@ class LearnerPlaylistHandlerTests(test_utils.GenericTestBase):
         self.assertEqual(
             learner_playlist_services.get_all_collection_ids_in_learner_playlist( # pylint: disable=line-too-long
                 self.viewer_id), [])
+
+        self.logout()
+
+    # New test
+    def test_remove_collection_from_learner_playlist_all_cases(self) -> None:
+        self.login(self.VIEWER_EMAIL)
+
+        # Add collections to the learner playlist.
+        learner_progress_services.add_collection_to_learner_playlist(self.viewer_id, self.COL_ID_1)
+        learner_progress_services.add_collection_to_learner_playlist(self.viewer_id, self.COL_ID_2)
+
+        # Test Case 1: Remove a valid collection.
+        self.delete_json('%s/%s/%s' % (
+            feconf.LEARNER_PLAYLIST_DATA_URL,
+            constants.ACTIVITY_TYPE_COLLECTION, self.COL_ID_1))
+        self.assertEqual(
+            learner_playlist_services.get_all_collection_ids_in_learner_playlist(self.viewer_id),
+            [self.COL_ID_2])
+
+        # Test Case 2: Remove the same collection again (no effect).
+        self.delete_json('%s/%s/%s' % (
+            feconf.LEARNER_PLAYLIST_DATA_URL,
+            constants.ACTIVITY_TYPE_COLLECTION, self.COL_ID_1))
+        self.assertEqual(
+            learner_playlist_services.get_all_collection_ids_in_learner_playlist(self.viewer_id),
+            [self.COL_ID_2])
+
+        # Test Case 3: Remove the last collection.
+        self.delete_json('%s/%s/%s' % (
+            feconf.LEARNER_PLAYLIST_DATA_URL,
+            constants.ACTIVITY_TYPE_COLLECTION, self.COL_ID_2))
+        self.assertEqual(
+            learner_playlist_services.get_all_collection_ids_in_learner_playlist(self.viewer_id),
+            [])
+
+        # Test Case 4: Remove a nonexistent collection.
+        self.delete_json('%s/%s/%s' % (
+            feconf.LEARNER_PLAYLIST_DATA_URL,
+            constants.ACTIVITY_TYPE_COLLECTION, 'nonexistent_col_id'),
+            expected_status_int=200)
+        self.assertEqual(
+            learner_playlist_services.get_all_collection_ids_in_learner_playlist(self.viewer_id),
+            [])
 
         self.logout()
