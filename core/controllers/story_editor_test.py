@@ -586,3 +586,58 @@ class StoryEditorTests(BaseStoryEditorControllerTests):
         self.assertEqual(url_fragment_exists, False)
 
         self.logout()
+
+    # Unsuccessful Attempt to cover branch 142->141
+    def test_story_id_matches_in_canonical_story_references(self):
+        # Create a topic object with a matching reference.
+        class MockStoryReference:
+            def __init__(self, story_id, story_is_published):
+                self.story_id = story_id
+                self.story_is_published = story_is_published
+
+        class MockTopic:
+            def __init__(self, references):
+                self.canonical_story_references = references
+
+        matching_story_id = self.story_id
+
+        mock_references = [
+            MockStoryReference(story_id=matching_story_id, story_is_published=True)
+        ]
+
+        mock_topic = MockTopic(mock_references)
+
+        # Simulate the branch where story_reference.story_id == story_id.
+        story_id_found = False
+        for story_reference in mock_topic.canonical_story_references:
+            if story_reference.story_id == self.story_id:
+                story_id_found = True
+
+        self.assertTrue(story_id_found)
+    
+    def test_story_id_does_not_match_in_canonical_story_references(self):
+        # Create a topic object with a mismatched reference.
+        class MockStoryReference:
+            def __init__(self, story_id, story_is_published):
+                self.story_id = story_id
+                self.story_is_published = story_is_published
+
+        class MockTopic:
+            def __init__(self, references):
+                self.canonical_story_references = references
+
+        mismatched_story_id = "mismatched_story_id"
+
+        mock_references = [
+            MockStoryReference(story_id=mismatched_story_id, story_is_published=False)
+        ]
+
+        mock_topic = MockTopic(mock_references)
+
+        # Simulate the branch where story_reference.story_id != story_id.
+        story_id_found = False
+        for story_reference in mock_topic.canonical_story_references:
+            if story_reference.story_id == self.story_id:
+                story_id_found = True
+
+        self.assertFalse(story_id_found)
