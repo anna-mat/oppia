@@ -87,7 +87,7 @@ class LearnerPlaylistHandler(
                     learner_progress_services.add_exp_to_learner_playlist(
                         self.user_id, activity_id,
                         position_to_be_inserted=position_to_be_inserted_in))
-        elif activity_type == constants.ACTIVITY_TYPE_COLLECTION:
+        if activity_type == constants.ACTIVITY_TYPE_COLLECTION:
             (
                 belongs_to_completed_or_incomplete_list,
                 playlist_limit_exceeded,
@@ -113,7 +113,7 @@ class LearnerPlaylistHandler(
         if activity_type == constants.ACTIVITY_TYPE_EXPLORATION:
             learner_playlist_services.remove_exploration_from_learner_playlist(
                 self.user_id, activity_id)
-        elif activity_type == constants.ACTIVITY_TYPE_COLLECTION:
+        if activity_type == constants.ACTIVITY_TYPE_COLLECTION:
             learner_playlist_services.remove_collection_from_learner_playlist(
                 self.user_id, activity_id)
 
