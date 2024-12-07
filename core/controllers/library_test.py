@@ -757,6 +757,89 @@ class LibraryGroupPageTests(test_utils.GenericTestBase):
             'status': rights_domain.ACTIVITY_STATUS_PUBLIC,
         }, response_dict['activity_list'][1])
 
+    # New tests
+    def test_library_group_index_handler_top_rated(self) -> None:
+        # Load a demo exploration to ensure data exists.
+        exp_services.load_demo('0')
+        rating_services.assign_rating_to_exploration('user', '0', 5)
+
+        # Mock top-rated exploration summaries.
+        with self.swap(
+            summary_services,
+            'get_top_rated_exploration_summary_dicts',
+            lambda langs, limit: [{"id": "0", "title": "Top Rated Exploration"}]
+        ):
+            response_dict = self.get_json(
+                feconf.LIBRARY_GROUP_DATA_URL,
+                params={'group_name': feconf.LIBRARY_GROUP_TOP_RATED}
+            )
+
+        # Assert the results.
+        self.assertEqual(len(response_dict['activity_list']), 1)
+        self.assertEqual(response_dict['activity_list'][0]['id'], "0")
+        self.assertEqual(
+            response_dict['header_i18n_id'],
+            feconf.LIBRARY_CATEGORY_TOP_RATED_EXPLORATIONS
+        )
+
+    def test_handler_for_recently_published_library_group_page_with_edge_cases(self) -> None:
+        # Edge Case: No explorations
+        def mock_no_recent_published(limit):
+            return []
+
+        with self.swap(
+            summary_services,
+            'get_recently_published_exp_summary_dicts',
+            mock_no_recent_published
+        ):
+            response_dict = self.get_json(
+                feconf.LIBRARY_GROUP_DATA_URL,
+                params={'group_name': feconf.LIBRARY_GROUP_RECENTLY_PUBLISHED}
+            )
+            self.assertEqual(len(response_dict['activity_list']), 0)
+
+        # Edge Case: Exceeding query limit
+        query_limit = feconf.RECENTLY_PUBLISHED_QUERY_LIMIT_FULL_PAGE
+
+        def mock_exceed_limit(limit):
+            # Return exactly 'limit' items, respecting the query limit.
+            return [{'id': f'exp_{i}'} for i in range(limit)]
+
+        with self.swap(
+            summary_services,
+            'get_recently_published_exp_summary_dicts',
+            mock_exceed_limit
+        ):
+            response_dict = self.get_json(
+                feconf.LIBRARY_GROUP_DATA_URL,
+                params={'group_name': feconf.LIBRARY_GROUP_RECENTLY_PUBLISHED}
+            )
+            self.assertEqual(len(response_dict['activity_list']), query_limit)
+
+    def test_library_group_index_handler_with_no_results(self) -> None:
+        # Mock `recently_published` to return no results
+        def mock_no_recent_published(limit):
+            return []
+
+        with self.swap(
+            summary_services,
+            'get_recently_published_exp_summary_dicts',
+            mock_no_recent_published
+        ):
+            response_dict = self.get_json(
+                feconf.LIBRARY_GROUP_DATA_URL,
+                params={'group_name': feconf.LIBRARY_GROUP_RECENTLY_PUBLISHED}
+            )
+            self.assertEqual(len(response_dict['activity_list']), 0)
+
+    def test_library_group_index_handler_with_invalid_group_name(self) -> None:
+        response = self.get_json(
+            feconf.LIBRARY_GROUP_DATA_URL,
+            params={'group_name': 'invalid_group_name'},
+            expected_status_int=400
+        )
+        self.assertIn('Schema validation for \'group_name\' failed', response['error'])
+
 
 class CategoryConfigTests(test_utils.GenericTestBase):
 
