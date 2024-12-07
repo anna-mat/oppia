@@ -395,6 +395,106 @@ class EditableSkillDataHandlerTest(BaseSkillEditorControllerTests):
         self.logout()
 
 
+    def test_skill_assigned_to_one_subtopic(self):
+    skill_id = skill_services.get_new_skill_id()
+    self.save_new_skill(skill_id, self.admin_id, description="Test Skill")
+    topic_id = topic_fetchers.get_new_topic_id()
+    
+    # Create a topic with one subtopic, and assign the skill to that subtopic.
+    self.save_new_topic(
+        topic_id, self.admin_id, name="Topic 1", abbreviated_name="topic_1", 
+        url_fragment="topic-1", description="Topic 1 description", 
+        canonical_story_ids=[], additional_story_ids=[], uncategorized_skill_ids=[],
+        subtopics=[{
+            'id': 1, 'title': 'Subtopic 1', 'skill_ids': [skill_id]
+        }], next_subtopic_id=2)
+    
+    url = '%s/%s' % (feconf.SKILL_EDITOR_DATA_URL_PREFIX, skill_id)
+    json_response = self.get_json(url)
+
+    # Ensure the skill is assigned to the correct subtopic.
+    self.assertEqual(json_response['assigned_skill_topic_data_dict']['Topic 1'], 'Subtopic 1')
+
+    def test_skill_assigned_to_multiple_subtopics(self):
+    skill_id = skill_services.get_new_skill_id()
+    self.save_new_skill(skill_id, self.admin_id, description="Test Skill")
+    topic_id = topic_fetchers.get_new_topic_id()
+    
+    # Create a topic with multiple subtopics, and assign the skill to the first subtopic.
+    self.save_new_topic(
+        topic_id, self.admin_id, name="Topic 2", abbreviated_name="topic_2", 
+        url_fragment="topic-2", description="Topic 2 description", 
+        canonical_story_ids=[], additional_story_ids=[], uncategorized_skill_ids=[],
+        subtopics=[
+            {'id': 1, 'title': 'Subtopic 1', 'skill_ids': [skill_id]},
+            {'id': 2, 'title': 'Subtopic 2', 'skill_ids': []}
+        ], next_subtopic_id=3)
+    
+    url = '%s/%s' % (feconf.SKILL_EDITOR_DATA_URL_PREFIX, skill_id)
+    json_response = self.get_json(url)
+
+    # Ensure the skill is assigned to the first subtopic.
+    self.assertEqual(json_response['assigned_skill_topic_data_dict']['Topic 2'], 'Subtopic 1')
+
+    def test_skill_not_assigned_to_any_subtopic(self):
+    skill_id = skill_services.get_new_skill_id()
+    self.save_new_skill(skill_id, self.admin_id, description="Test Skill")
+    topic_id = topic_fetchers.get_new_topic_id()
+    
+    # Create a topic with one subtopic, but don't assign the skill to the subtopic.
+    self.save_new_topic(
+        topic_id, self.admin_id, name="Topic 3", abbreviated_name="topic_3", 
+        url_fragment="topic-3", description="Topic 3 description", 
+        canonical_story_ids=[], additional_story_ids=[], uncategorized_skill_ids=[],
+        subtopics=[{'id': 1, 'title': 'Subtopic 3', 'skill_ids': []}], next_subtopic_id=2)
+    
+    url = '%s/%s' % (feconf.SKILL_EDITOR_DATA_URL_PREFIX, skill_id)
+    json_response = self.get_json(url)
+
+    # Ensure the skill is not assigned to any subtopic in this topic.
+    self.assertNotIn('Topic 3', json_response['assigned_skill_topic_data_dict'])
+
+    def test_topic_with_no_subtopics(self):
+    skill_id = skill_services.get_new_skill_id()
+    self.save_new_skill(skill_id, self.admin_id, description="Test Skill")
+    topic_id = topic_fetchers.get_new_topic_id()
+    
+    # Create a topic with no subtopics.
+    self.save_new_topic(
+        topic_id, self.admin_id, name="Topic 4", abbreviated_name="topic_4", 
+        url_fragment="topic-4", description="Topic 4 description", 
+        canonical_story_ids=[], additional_story_ids=[], uncategorized_skill_ids=[],
+        subtopics=[], next_subtopic_id=1)
+    
+    url = '%s/%s' % (feconf.SKILL_EDITOR_DATA_URL_PREFIX, skill_id)
+    json_response = self.get_json(url)
+
+    # Ensure no subtopic name is assigned since there are no subtopics.
+    self.assertNotIn('Topic 4', json_response['assigned_skill_topic_data_dict'])
+
+    def test_skill_not_in_subtopic(self):
+    skill_id = skill_services.get_new_skill_id()
+    self.save_new_skill(skill_id, self.admin_id, description="Test Skill")
+    topic_id = topic_fetchers.get_new_topic_id()
+    
+    # Create a topic with subtopics that don't contain the skill.
+    self.save_new_topic(
+        topic_id, self.admin_id, name="Topic 5", abbreviated_name="topic_5", 
+        url_fragment="topic-5", description="Topic 5 description", 
+        canonical_story_ids=[], additional_story_ids=[], uncategorized_skill_ids=[],
+        subtopics=[
+            {'id': 1, 'title': 'Subtopic 5.1', 'skill_ids': []},
+            {'id': 2, 'title': 'Subtopic 5.2', 'skill_ids': []}
+        ], next_subtopic_id=3)
+    
+    url = '%s/%s' % (feconf.SKILL_EDITOR_DATA_URL_PREFIX, skill_id)
+    json_response = self.get_json(url)
+
+    # Ensure no subtopic name is assigned since the skill is not present in any subtopic.
+    self.assertNotIn('Topic 5', json_response['assigned_skill_topic_data_dict'])
+
+
+
 class SkillDataHandlerTest(BaseSkillEditorControllerTests):
     """Tests for SkillDataHandler."""
 
