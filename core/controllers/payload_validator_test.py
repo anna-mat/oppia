@@ -20,6 +20,7 @@ from core.controllers import payload_validator
 from core.tests import test_utils
 
 from typing import Any, Dict, List, Tuple
+from unittest import mock
 
 
 class PayloadValidationUnitTests(test_utils.GenericTestBase):
@@ -75,7 +76,59 @@ class PayloadValidationUnitTests(test_utils.GenericTestBase):
                     }
                 }
             }, [
-                'Missing key in handler args: exploration_id.'])
+                'Missing key in handler args: exploration_id.']),
+            ({
+                'bool_param': 'true'
+            }, {
+                'bool_param': {
+                    'schema': {
+                        'type': 'bool'
+                    }
+                }
+            }, ['Schema validation for \'bool_param\' failed: Expected bool, received true']),
+            ({
+                'param': 123
+            }, {
+                'param': {
+                    'schema': {
+                        'type': 'basestring',
+                        'new_key_for_argument': 'new_param'
+                    }
+                }
+            }, ['Schema validation for \'param\' failed: Expected string, received 123']),
+            ({
+                'param': {'invalid_key': 'invalid_value'}
+            }, {
+                'param': {
+                    'schema': {
+                        'type': 'basestring',
+                        'new_key_for_argument': 'new_param'
+                    }
+                }
+            }, [
+                'Schema validation for \'param\' failed: Expected string, received {\'invalid_key\': \'invalid_value\'}'
+            ]),
+            ({
+                'extra_param': 'extra_value'
+            }, {
+                'param': {
+                    'schema': {
+                        'type': 'basestring',
+                    }
+                }
+            }, [
+                'Missing key in handler args: param.',
+                'Found extra args: [\'extra_param\'].'
+            ]),
+            ({
+                'test_param': None
+            }, {
+                'test_param': {
+                    'schema': {
+                        'type': 'basestring'
+                    }
+                }
+            }, ['Missing key in handler args: test_param.'])
         ]
         for handler_args, handler_args_schema, error_msg in (
                 list_of_invalid_args_with_schema_and_errors):
@@ -90,6 +143,45 @@ class PayloadValidationUnitTests(test_utils.GenericTestBase):
 
             self.assertEqual(normalized_value, {})
             self.assertEqual(error_msg, errors)
+        handler_args1 = {'param': 'value'}
+        handler_args_schema1 = {
+        'param': {
+            'schema': {
+                'type': 'basestring'
+                }
+            }
+        }
+
+        with mock.patch('core.schema_utils.normalize_against_schema', side_effect=Exception('Mocked exception')):
+            normalized_value1, errors1 = payload_validator.validate_arguments_against_schema(
+                handler_args1,
+                handler_args_schema1,
+                allowed_extra_args=False,
+                allow_string_to_bool_conversion=False
+            )
+
+        self.assertEqual(normalized_value1, {})
+        self.assertEqual(errors1, ["Schema validation for 'param' failed: Mocked exception"])
+        handler_args2 = {'param': 'value', 'extra_param': 'extra_value'}
+        handler_args_schema2 = {
+            'param': {
+            'schema': {
+                'type': 'basestring'
+                }
+            }
+        }
+
+        with mock.patch('core.schema_utils.normalize_against_schema', side_effect=Exception('Mocked exception')):
+            normalized_value2, errors2 = payload_validator.validate_arguments_against_schema(
+                handler_args2,
+                handler_args_schema2,
+                allowed_extra_args=False,
+                allow_string_to_bool_conversion=False
+        )
+
+        self.assertEqual(normalized_value2, {})
+        self.assertIn("Schema validation for 'param' failed: Mocked exception", errors2)
+        self.assertIn("Found extra args: ['extra_param'].", errors2)
 
     def test_valid_args_do_not_raises_exception(self) -> None:
         # List of 3-tuples, where the first element is a valid argument dict,
@@ -151,6 +243,125 @@ class PayloadValidationUnitTests(test_utils.GenericTestBase):
                 }
             }, {
                 'new_key_for_apply_draft': True
+            }),
+            ({
+                'bool_param':True
+            }, {
+                'bool_param': {
+                    'schema': {
+                        'type':'bool'
+                        }
+                    }
+            }, {
+                'bool_param': True
+            }),
+            ({
+                'handler_arg_key1': None
+            }, {
+                'handler_arg_key1': {
+                    'schema': {
+                        'type': 'basestring'
+                    },
+                    'default_value': 'hello'
+                }
+            }, {
+                'handler_arg_key1': 'hello'
+            }),
+            ({
+                'handler_arg_key2': None
+            }, {
+                'handler_arg_key2': {
+                    'schema': {
+                        'type': 'basestring'
+                    },
+                    'default_value': None
+                }
+            }, {}),
+            ({
+                'handler_arg_key3': 'random_string'
+            }, {
+                'handler_arg_key3': {
+                    'schema': {
+                        'type': 'basestring',
+                        'new_key_for_argument': 'new_key_for_handler_arg_key3'
+                    }
+                }
+            }, {
+                'new_key_for_handler_arg_key3': 'random_string'
+            }),
+            ({
+                'bool_param1': 'true'
+            }, {
+                'bool_param1': {
+                    'schema': {
+                        'type': 'bool'
+                    }
+                }
+            }, {
+                'bool_param1': True
+            }),
+            ({
+                'bool_param2': 'false'
+            }, {
+                'bool_param2': {
+                    'schema': {
+                        'type': 'bool'
+                    }
+                }
+            }, {
+                'bool_param2': False
+            }),
+            ({}, {
+                'bool_param3': {
+                    'schema': {
+                        'type': 'bool'
+                    },
+                    'default_value': None
+                }
+            },{}), 
+            ({
+                'bool_param4': 'true'
+            }, {
+                'bool_param4': {
+                    'schema': {
+                        'type': 'basestring'
+                    }
+                }
+            }, {
+                'bool_param4': 'true'
+            }),
+            ({},
+            {
+                'bool_param5': {
+                    'schema': {
+                        'type': 'bool'
+                    },
+                    'default_value': True
+                }
+            }, {
+                'bool_param5': True
+            }),
+            ({
+                'bool_param6': None
+            }, {
+                'bool_param6': {
+                    'schema': {
+                        'type': 'bool'
+                    },
+                    'default_value': True
+                }
+            }, {
+                'bool_param6': True
+            }),
+            ({}, {
+                'bool_param7': {
+                    'schema': {
+                        'type': 'bool'
+                    },
+                    'default_value': 'true'
+                }
+            }, {
+                'bool_param7': True
             })
         ]
         for handler_args, handler_args_schema, normalized_value_for_args in (
