@@ -162,6 +162,50 @@ class QuestionsListHandlerTests(BaseQuestionsListControllerTests):
         self.get_json('%s/%s?offset=0' % (
             feconf.QUESTIONS_LIST_URL_PREFIX, self.skill_id_3),
                       expected_status_int=404)
+    def test_get_questions_with_none_in_summary(self) -> None:
+        # Set up some skills and a question for testing
+        question_id = question_services.get_new_question_id()
+        content_id_generator = translation_domain.ContentIdGenerator()
+        self.save_new_question(
+            question_id, self.admin_id,
+            self._create_valid_question_data('ABC', content_id_generator),
+            [self.skill_id, self.skill_id_2],
+            content_id_generator.next_content_id_index)
+        question_services.create_new_question_skill_link(
+            self.admin_id, question_id, self.skill_id, 0.5)
+        question_services.create_new_question_skill_link(
+            self.admin_id, question_id, self.skill_id_2, 0.3)
+
+        # Simulate a scenario where the `question_summaries` contains None
+        # We mock the response of question_services.get_displayable_question_skill_link_details
+        # to simulate a summary that contains None for some questions
+        def mock_get_displayable_question_skill_link_details(num_questions, skill_ids, offset):
+            # Return a mix of valid and None question summaries
+            return [None, MockQuestionSummary(id=1), None, MockQuestionSummary(id=2)], [MockSkillLink(), MockSkillLink()]
+    
+        # Swap the original function with the mock
+        with self.swap(question_services, 'get_displayable_question_skill_link_details', mock_get_displayable_question_skill_link_details):
+            self.login(self.CURRICULUM_ADMIN_EMAIL)
+            
+            # Make the actual GET request using the test method
+            with self.swap(constants, 'NUM_QUESTIONS_PER_PAGE', 2):
+                json_response = self.get_json(
+                    '%s/%s,%s?offset=0' % (
+                        feconf.QUESTIONS_LIST_URL_PREFIX,
+                        self.skill_id, self.skill_id_2
+                    ))
+    
+            # Check that the result only includes the valid summaries (those not None)
+            question_summary_dicts = json_response['question_summary_dicts']
+            self.assertEqual(len(question_summary_dicts), 2)  # Only 2 valid summaries should be included
+            self.assertEqual(question_summary_dicts[0]['summary']['id'], 1)
+            self.assertEqual(question_summary_dicts[1]['summary']['id'], 2)
+    
+            # Ensure 'more' is correctly set (based on the logic in the function)
+            more = json_response['more']
+            self.assertTrue(more)
+    
+        self.logout()
 
 
 class QuestionCountDataHandlerTests(BaseQuestionsListControllerTests):
