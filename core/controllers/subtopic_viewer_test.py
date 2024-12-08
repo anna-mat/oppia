@@ -259,3 +259,47 @@ class SubtopicPageDataHandlerTests(BaseSubtopicViewerControllerTests):
             expected_status_int=404
         )
         self.assertIn('Could not find the resource', response['error'])
+
+    # Added Test on the Edge Case of Missing Subtopic Content
+    def test_get_with_missing_subtopic_content(self) -> None:
+        topic_services.unpublish_topic(self.topic_id, self.admin_id)
+
+        response = self.get_json(
+            '%s/staging/%s/%s' % (
+                feconf.SUBTOPIC_DATA_HANDLER, 'name', 'sub-url-frag-one'
+            ),
+            expected_status_int=404
+        )
+        self.assertIn('Could not find the resource', response['error'])
+
+    # Test on Subtopic is Not the Last (Attempt to Cover 70->81)
+    def test_get_subtopic_with_next_subtopic(self) -> None:
+        # Test the first subtopic to trigger next_subtopic_dict branch.
+        json_response = self.get_json(
+            '%s/staging/%s/%s' % (
+                feconf.SUBTOPIC_DATA_HANDLER, 'name', 'sub-url-frag-one'
+            )
+        )
+        # Assert the next_subtopic_dict is set.
+        self.assertIsNotNone(json_response['next_subtopic_dict'])
+        self.assertEqual(
+            json_response['next_subtopic_dict']['url_fragment'],
+            'sub-url-frag-two'
+        )
+        self.assertIsNone(json_response['prev_subtopic_dict'])
+
+    # Test on Subtopic is the Last, With Multiple Subtopics (Attempt to Cover 78->80) 
+    def test_get_subtopic_with_previous_subtopic(self) -> None:
+        # Test the last subtopic to trigger prev_subtopic_dict branch.
+        json_response = self.get_json(
+            '%s/staging/%s/%s' % (
+                feconf.SUBTOPIC_DATA_HANDLER, 'name', 'sub-url-frag-two'
+            )
+        )
+        # Assert the prev_subtopic_dict is set.
+        self.assertIsNotNone(json_response['prev_subtopic_dict'])
+        self.assertEqual(
+            json_response['prev_subtopic_dict']['url_fragment'],
+            'sub-url-frag-one'
+        )
+        self.assertIsNone(json_response['next_subtopic_dict'])
