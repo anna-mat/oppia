@@ -35,6 +35,7 @@ from core.tests import test_utils
 
 from typing import Callable, Dict, List
 
+from unittest.mock import patch
 
 class BaseTopicsAndSkillsDashboardTests(test_utils.GenericTestBase):
 
@@ -171,6 +172,27 @@ class TopicsAndSkillsDashboardPageDataHandlerTests(
         self.assertIn(
             b'{"title": "Topics and Skills Dashboard - Oppia"})', response.body)
 
+        self.logout()
+
+    # Tests for Empty States or Unauthorized Access
+    def test_dashboard_with_no_data(self):
+        with patch('core.domain.topic_fetchers.get_all_topic_summaries', return_value=[]), \
+             patch('core.domain.skill_services.get_all_skill_summaries', return_value=[]):
+            self.login(self.CURRICULUM_ADMIN_EMAIL)
+            json_response = self.get_json(feconf.TOPICS_AND_SKILLS_DASHBOARD_DATA_URL)
+
+            # Assert that there are no topics or skills in the response.
+            self.assertEqual(len(json_response['topic_summary_dicts']), 0)
+            self.assertEqual(len(json_response['untriaged_skill_summary_dicts']), 0)
+
+            self.logout()
+
+    def test_unauthorized_access_to_dashboard(self):
+        self.login(self.NEW_USER_EMAIL)
+        self.get_json(
+            feconf.TOPICS_AND_SKILLS_DASHBOARD_DATA_URL,
+            expected_status_int=401
+        )
         self.logout()
 
 
